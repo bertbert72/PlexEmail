@@ -15,6 +15,7 @@ import imghdr
 import time
 import logging
 import traceback
+import datetime
 from base64 import b64encode
 from collections import OrderedDict
 from datetime import date, timedelta
@@ -55,6 +56,18 @@ def replaceConfigTokens():
     
   if ('upload_cloudinary_resize' not in config):
     config['upload_cloudinary_resize'] = False
+
+  if ('upload_cloudinary_use_folder' not in config):
+    config['upload_cloudinary_use_folder'] = False
+
+  if ('upload_cloudinary_purge_folder' not in config):
+    config['upload_cloudinary_purge_folder'] = False
+
+  if ('upload_cloudinary_folder' not in config):
+    config['upload_cloudinary_folder'] = ''
+
+  if ('upload_cloudinary_subfolder' not in config):
+    config['upload_cloudinary_subfolder'] = ''
 
   if ('artist_sort_1' not in config.keys() or config['artist_sort_1'] == ""):
     config['artist_sort_1'] = 'title_sort'
@@ -487,17 +500,23 @@ def uploadToImgur(imgToUpload, nameOfUpload):
     return ''
       
 def uploadToCloudinary(imgToUpload):
+  global purgeFolder
   logging.info('uploadToCloudinary: begin')
   if (os.path.isfile(imgToUpload)):
     if (os.path.islink(imgToUpload)):
       imgToUpload = os.path.realpath(imgToUpload)
     if (imghdr.what(imgToUpload)):
+      if (purgeFolder):
+        logging.info('uploadToCloudinary: purging destination folder')
+        response = cloudinary.api.delete_resources_by_prefix(config['upload_cloudinary_folder']+'/')
+        logging.info('uploadToCloudinary: purge response = ' + str(response))
+        purgeFolder = False
       logging.info('uploadToCloudinary: start upload to cloudinary')
       if (config['upload_cloudinary_resize']):
-        response = cloudinary.uploader.upload(imgToUpload,width = config['upload_cloudinary_width'], height = config['upload_cloudinary_height'], crop = 'limit')
+        response = cloudinary.uploader.upload(imgToUpload, width = config['upload_cloudinary_width'], height = config['upload_cloudinary_height'], crop = 'limit', folder = uploadFolder)
       else:
-        response = cloudinary.uploader.upload(imgToUpload)
-      logging.info('uploadToCloudinary: response = ' + str(response))
+        response = cloudinary.uploader.upload(imgToUpload, folder = uploadFolder)
+      logging.info('uploadToCloudinary: upload response = ' + str(response))
       url = response['secure_url'] if (config['upload_cloudinary_use_https']) else response['url']
       logging.info('uploadToCloudinary: url = ' + url)
       return url
@@ -914,6 +933,20 @@ if ('upload_use_cloudinary' in config and config['upload_use_cloudinary']):
     upload_prefix = 'https://api.cloudinary.com' if ('upload_cloudinary_use_https' in config and config['upload_cloudinary_use_https']) else 'http://api.cloudinary.com'
   )
   logging.debug('Cloudinary config: ' + str(cloudinary.config))
+  uploadFolder = ''
+  purgeFolder = False
+  if (config['upload_cloudinary_use_folder']):
+    uploadFolder = config['upload_cloudinary_folder']
+    uploadSubfolder = config['upload_cloudinary_subfolder']
+    if (uploadFolder != ''):
+      if ('%' in uploadFolder):
+        uploadFolder = datetime.datetime.now().strftime(uploadFolder)
+      else:
+        purgeFolder = config['upload_cloudinary_purge_folder']
+      if (uploadSubfolder != ''):
+        if ('%' in uploadSubfolder):
+          uploadSubfolder = datetime.datetime.now().strftime(uploadSubfolder)
+        uploadFolder = uploadFolder + '/' + uploadSubfolder
 
 plexWebLink = ''
 
