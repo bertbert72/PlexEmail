@@ -25,7 +25,7 @@ from email.header import Header
 from email.utils import formataddr
 from xml.etree.ElementTree import XML
 
-SCRIPT_VERSION = 'v0.9.3'
+SCRIPT_VERSION = 'v0.9.4'
 
 def replaceConfigTokens():
   ## The below code is for backwards compatibility
@@ -53,6 +53,9 @@ def replaceConfigTokens():
   if ('upload_cloudinary_api_secret' not in config):
     config['upload_cloudinary_api_secret'] = True
     
+  if ('upload_cloudinary_resize' not in config):
+    config['upload_cloudinary_resize'] = False
+
   if ('artist_sort_1' not in config.keys() or config['artist_sort_1'] == ""):
     config['artist_sort_1'] = 'title_sort'
     
@@ -490,7 +493,10 @@ def uploadToCloudinary(imgToUpload):
       imgToUpload = os.path.realpath(imgToUpload)
     if (imghdr.what(imgToUpload)):
       logging.info('uploadToCloudinary: start upload to cloudinary')
-      response = cloudinary.uploader.upload(imgToUpload)
+      if (config['upload_cloudinary_resize']):
+        response = cloudinary.uploader.upload(imgToUpload,width = config['upload_cloudinary_width'], height = config['upload_cloudinary_height'], crop = 'limit')
+      else:
+        response = cloudinary.uploader.upload(imgToUpload)
       logging.info('uploadToCloudinary: response = ' + str(response))
       url = response['secure_url'] if (config['upload_cloudinary_use_https']) else response['url']
       logging.info('uploadToCloudinary: url = ' + url)
