@@ -53,7 +53,7 @@ def replaceConfigTokens():
   
   if ('upload_cloudinary_api_secret' not in config):
     config['upload_cloudinary_api_secret'] = True
-    
+
   if ('upload_cloudinary_resize' not in config):
     config['upload_cloudinary_resize'] = False
 
@@ -69,6 +69,9 @@ def replaceConfigTokens():
   if ('upload_cloudinary_subfolder' not in config):
     config['upload_cloudinary_subfolder'] = ''
 
+  if ('upload_cloudinary_purge_keep' not in config):
+    config['upload_cloudinary_purge_keep'] = 0
+    
   if ('artist_sort_1' not in config.keys() or config['artist_sort_1'] == ""):
     config['artist_sort_1'] = 'title_sort'
     
@@ -506,11 +509,6 @@ def uploadToCloudinary(imgToUpload):
     if (os.path.islink(imgToUpload)):
       imgToUpload = os.path.realpath(imgToUpload)
     if (imghdr.what(imgToUpload)):
-      if (purgeFolder):
-        logging.info('uploadToCloudinary: purging destination folder')
-        response = cloudinary.api.delete_resources_by_prefix(config['upload_cloudinary_folder']+'/')
-        logging.info('uploadToCloudinary: purge response = ' + str(response))
-        purgeFolder = False
       logging.info('uploadToCloudinary: start upload to cloudinary')
       if (config['upload_cloudinary_resize']):
         response = cloudinary.uploader.upload(imgToUpload, width = config['upload_cloudinary_width'], height = config['upload_cloudinary_height'], crop = 'limit', folder = uploadFolder)
@@ -519,6 +517,30 @@ def uploadToCloudinary(imgToUpload):
       logging.info('uploadToCloudinary: upload response = ' + str(response))
       url = response['secure_url'] if (config['upload_cloudinary_use_https']) else response['url']
       logging.info('uploadToCloudinary: url = ' + url)
+
+      if (purgeFolder):
+        logging.info('uploadToCloudinary: purging destination folder')
+        response = cloudinary.api.root_folders()
+        folders = response['folders']
+        if (any(config['upload_cloudinary_folder'] == d['name'] for d in folders)):
+          if (config['upload_cloudinary_subfolder'] == ''):
+            response = cloudinary.api.delete_resources_by_prefix(uploadFolder)
+            logging.info('uploadToCloudinary: ' + uploadFolder + ' purged')
+          elif ('%' in config['upload_cloudinary_subfolder']):
+            response = cloudinary.api.subfolders(config['upload_cloudinary_folder'])
+            folders = response['folders']
+            for index, k in enumerate(folders):
+              if (len(folders)-config['upload_cloudinary_purge_keep'] > index):
+                cloudinary.api.delete_resources_by_prefix(k['path'])
+                response = requests.delete(upload_prefix+'/v1_1/' + cloud_name + '/folders/' + k['path'], auth=(api_key, api_secret))
+                logging.info('uploadToCloudinary: ' + k['name'] + ' purge response = ' + str(response))
+            logging.info('uploadToCloudinary: subfolders purged')
+          else:
+            logging.info('uploadToCloudinary: subfolder not date format for purging')
+        else:
+          logging.info('uploadToCloudinary: root folder not found for purging')
+        purgeFolder = False
+
       return url
     else:
       logging.info('uploadToCloudinary: not an image')
@@ -893,7 +915,7 @@ if ('configfile' in args):
 if (not os.path.isfile(configFile)):
   print configFile + ' does not exist'
   sys.exit()
-  
+
 config = {}
 execfile(configFile, config)
 replaceConfigTokens()
@@ -926,11 +948,15 @@ if ('notice' in args and args['notice']):
 
 if ('upload_use_cloudinary' in config and config['upload_use_cloudinary']):
   logging.info('Setting Cloudinary config values')
+  cloud_name = config['upload_cloudinary_cloud_name']
+  api_key = config['upload_cloudinary_api_key']
+  api_secret = config['upload_cloudinary_api_secret']
+  upload_prefix = 'https://api.cloudinary.com' if ('upload_cloudinary_use_https' in config and config['upload_cloudinary_use_https']) else 'http://api.cloudinary.com'
   cloudinary.config(
-    cloud_name = config['upload_cloudinary_cloud_name'],
-    api_key = config['upload_cloudinary_api_key'],
-    api_secret = config['upload_cloudinary_api_secret'],
-    upload_prefix = 'https://api.cloudinary.com' if ('upload_cloudinary_use_https' in config and config['upload_cloudinary_use_https']) else 'http://api.cloudinary.com'
+    cloud_name = cloud_name,
+    api_key = api_key,
+    api_secret = api_secret,
+    upload_prefix = upload_prefix
   )
   logging.debug('Cloudinary config: ' + str(cloudinary.config))
   uploadFolder = ''

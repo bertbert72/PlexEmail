@@ -136,9 +136,10 @@ The config file is in the scripts folder.  Before first run of the script, pleas
 * upload_cloudinary_width - Max width of resized images
 * upload_cloudinary_height - Max height of resized images
 * upload_cloudinary_use_folder - Use folders when uploading
-* upload_cloudinary_purge_folder - Purge folder contents before upload
 * upload_cloudinary_folder - Name of main folder, can be static text or a date format
 * upload_cloudinary_subfolder - Name of sub folder, can be static text or a date format
+* upload_cloudinary_purge_folder - Purge folder contents before upload
+* upload_cloudinary_purge_keep - Number of historical sub folders to keep
 
 ##### Email
 * email_enabled - Enable the creation and sending of an email
